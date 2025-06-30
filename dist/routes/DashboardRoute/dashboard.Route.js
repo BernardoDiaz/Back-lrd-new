@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const dashboard_Controller_1 = require("../../controllers/dashboardControllers/dashboard.Controller");
+const router = (0, express_1.Router)();
+router.get('/task/:userId', dashboard_Controller_1.getUserManagedTasks);
+router.get('/companies/:userId', dashboard_Controller_1.getUserManagedCompaniesCount);
+router.get('/quotes/:userId', dashboard_Controller_1.getUserManagedQuotesCount);
+router.get('/tasks/pending/:userId', dashboard_Controller_1.getUserManagedPendingTasksCount);
+router.get('/programs/:userId', dashboard_Controller_1.getUserManagedProgramsThisWeek);
+router.get('/sales/percentage/country/:userId', dashboard_Controller_1.getSalesPercentageByCountry);
+router.get('/monthlySales/:userId', dashboard_Controller_1.getMonthlySales);
+router.get('/quotes/sold/:userId', dashboard_Controller_1.getUserManagedSoldQuotes);
+router.get('/statusSales/:userId', dashboard_Controller_1.getQuoteStatusPercentages);
+exports.default = router;

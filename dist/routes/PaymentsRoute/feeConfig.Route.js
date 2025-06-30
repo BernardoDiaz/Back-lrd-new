@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const FeeConfig_Controller_1 = require("../../controllers/PaymentsControllers/FeeConfig.Controller");
+const router = (0, express_1.Router)();
+router.post('/', FeeConfig_Controller_1.createFeeConfig);
+router.get('/', FeeConfig_Controller_1.getAllFeeConfigs);
+router.get('/:id', FeeConfig_Controller_1.getFeeConfigById);
+router.put('/:id', FeeConfig_Controller_1.updateFeeConfig);
+router.delete('/:id', FeeConfig_Controller_1.deleteFeeConfig);
+exports.default = router;

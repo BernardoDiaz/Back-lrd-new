@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const Visita_Controller_1 = require("../../controllers/MonitoreoControllers/Visita.Controller");
+const router = (0, express_1.Router)();
+router.get("/", Visita_Controller_1.getVisitas);
+router.get("/agendadas", Visita_Controller_1.getVisitasAgendadas);
+router.post("/", Visita_Controller_1.newVisita);
+router.put("/:id", Visita_Controller_1.updateVisita);
+router.delete("/:id", Visita_Controller_1.deleteVisita);
+exports.default = router;

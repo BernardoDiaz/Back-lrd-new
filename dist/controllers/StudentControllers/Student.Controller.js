@@ -1,0 +1,247 @@
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getNextStudentIdSimple = exports.checkStudentEmailExists = exports.checkStudentIdExists = exports.getStudentEnrollment = exports.getStudentFees = exports.promoteToStudent = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.getAllStudents = exports.createAspirant = void 0;
+const student_1 = require("../../models/studentsModels/student");
+const paymentBook_1 = require("../../models/paymentsModels/paymentBook");
+const enrollment_1 = require("../../models/paymentsModels/enrollment");
+const fee_1 = require("../../models/paymentsModels/fee");
+const feeConfig_1 = require("../../models/paymentsModels/feeConfig");
+const sequelize_1 = require("sequelize");
+// Crear nuevo aspirante
+const createAspirant = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { studentID, nombres, apellidos, correo, telefono, fechaNacimiento, direccion, matricula, nivel, grado, nombreContactoEmergencia, telefonoContactoEmergencia, tipo } = req.body;
+        // Buscar montos en FeeConfig por nivel
+        const config = yield feeConfig_1.FeeConfig.findOne({ where: { nivel } });
+        if (!config) {
+            return res.status(400).json({ msg: 'No existe configuración de montos para el nivel especificado.' });
+        }
+        const cuotaFinal = config.get('montoCuota');
+        const matriculaFinal = config.get('montoMatricula');
+        const student = yield student_1.Student.create({
+            studentID,
+            nombres,
+            apellidos,
+            correo,
+            telefono,
+            fechaNacimiento,
+            direccion,
+            matricula,
+            nivel,
+            grado,
+            nombreContactoEmergencia,
+            telefonoContactoEmergencia,
+            tipo,
+            estado: 'activo'
+        });
+        if (tipo === 'estudiante') {
+            // Crear talonario y matrícula solo si es estudiante
+            const paymentBook = yield paymentBook_1.PaymentBook.create({ studentId: student.get('studentID'), year: new Date().getFullYear() });
+            yield enrollment_1.Enrollment.create({ studentId: student.get('studentID'), montoTotal: matriculaFinal, year: new Date().getFullYear() });
+            // Generar automáticamente 11 cuotas (enero a noviembre)
+            const meses = [
+                'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre'
+            ];
+            const cuotas = meses.map(mes => ({
+                paymentBookId: paymentBook.get('id'),
+                studentId: student.get('studentID'),
+                mes,
+                monto: cuotaFinal,
+                pagado: false,
+                year: new Date().getFullYear()
+            }));
+            yield fee_1.Fee.bulkCreate(cuotas);
+        }
+        res.status(201).json(student);
+    }
+    catch (error) {
+        res.status(400).json({ error });
+    }
+});
+exports.createAspirant = createAspirant;
+// Listar todos los estudiantes/aspirantes
+const getAllStudents = (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const students = yield student_1.Student.findAll();
+    res.json(students);
+});
+exports.getAllStudents = getAllStudents;
+// Obtener un estudiante por ID
+const getStudentById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const student = yield student_1.Student.findByPk(id);
+    if (!student)
+        return res.status(404).json({ msg: 'No encontrado' });
+    res.json(student);
+});
+exports.getStudentById = getStudentById;
+// Actualizar datos de estudiante
+const updateStudent = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const { nombres, apellidos, correo, telefono, fechaNacimiento, direccion, matricula, nivel, grado, nombreContactoEmergencia, telefonoContactoEmergencia, tipo, estado } = req.body;
+    const student = yield student_1.Student.findByPk(id);
+    if (!student)
+        return res.status(404).json({ msg: 'No encontrado' });
+    yield student.update({
+        nombres,
+        apellidos,
+        correo,
+        telefono,
+        fechaNacimiento,
+        direccion,
+        matricula,
+        nivel,
+        grado,
+        nombreContactoEmergencia,
+        telefonoContactoEmergencia,
+        tipo,
+        estado
+    });
+    res.json(student);
+});
+exports.updateStudent = updateStudent;
+// Eliminar estudiante
+const deleteStudent = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { studentId } = req.params;
+    const student = yield student_1.Student.findOne({ where: { studentID: studentId } });
+    if (!student)
+        return res.status(404).json({ msg: 'No encontrado' });
+    yield student.destroy();
+    res.json({ msg: 'Eliminado' });
+});
+exports.deleteStudent = deleteStudent;
+// Cambiar aspirante a estudiante
+const promoteToStudent = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { studentId } = req.params;
+    const student = yield student_1.Student.findOne({ where: { studentID: studentId } });
+    if (!student)
+        return res.status(404).json({ msg: 'No encontrado' });
+    if (student.get('tipo') !== 'estudiante') {
+        // Cambiar tipo a estudiante
+        yield student.update({ tipo: 'estudiante' });
+        // Buscar montos en FeeConfig por nivel
+        const nivel = student.get('nivel');
+        const config = yield feeConfig_1.FeeConfig.findOne({ where: { nivel } });
+        if (!config) {
+            return res.status(400).json({ msg: 'No existe configuración de montos para el nivel especificado.' });
+        }
+        const cuotaFinal = config.get('montoCuota');
+        const matriculaFinal = config.get('montoMatricula');
+        // Crear talonario y matrícula
+        const paymentBook = yield paymentBook_1.PaymentBook.create({ studentId: student.get('studentID'), year: new Date().getFullYear() });
+        yield enrollment_1.Enrollment.create({ studentId: student.get('studentID'), montoTotal: matriculaFinal, year: new Date().getFullYear() });
+        // Generar automáticamente 11 cuotas (enero a noviembre)
+        const meses = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre'
+        ];
+        const cuotas = meses.map(mes => ({
+            paymentBookId: paymentBook.get('id'),
+            studentId: student.get('studentID'),
+            mes,
+            monto: cuotaFinal,
+            pagado: false,
+            year: new Date().getFullYear()
+        }));
+        yield fee_1.Fee.bulkCreate(cuotas);
+    }
+    res.json(student);
+});
+exports.promoteToStudent = promoteToStudent;
+// Consultar cuotas de un estudiante
+const getStudentFees = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { studentId } = req.params;
+    // Buscar el talonario del estudiante
+    const paymentBook = yield paymentBook_1.PaymentBook.findOne({ where: { studentId } });
+    if (!paymentBook)
+        return res.status(404).json({ msg: 'Talonario no encontrado' });
+    const fees = yield fee_1.Fee.findAll({ where: { paymentBookId: paymentBook.get('id') } });
+    res.json(fees);
+});
+exports.getStudentFees = getStudentFees;
+// Consultar estado de matrícula
+const getStudentEnrollment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { studentId } = req.params;
+    const enrollment = yield enrollment_1.Enrollment.findOne({ where: { studentId } });
+    if (!enrollment)
+        return res.status(404).json({ msg: 'Matrícula no encontrada' });
+    res.json(enrollment);
+});
+exports.getStudentEnrollment = getStudentEnrollment;
+// Verificar si un studentID existe
+const checkStudentIdExists = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        if (!id || typeof id !== 'string') {
+            return res.status(400).json({ error: 'ID inválido' });
+        }
+        const exists = yield student_1.Student.findOne({ where: { studentID: id } });
+        res.json({ exists: !!exists });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Error al verificar el ID' });
+    }
+});
+exports.checkStudentIdExists = checkStudentIdExists;
+// Verificar si un correo existe
+const checkStudentEmailExists = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email } = req.params;
+        if (!email || typeof email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+            return res.status(400).json({ error: 'Email inválido' });
+        }
+        const exists = yield student_1.Student.findOne({ where: { correo: email } });
+        res.json({ exists: !!exists });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Error al verificar el email' });
+    }
+});
+exports.checkStudentEmailExists = checkStudentEmailExists;
+// Obtener el siguiente studentID sugerido a partir de un baseId
+const getNextStudentIdSimple = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { baseId } = req.params;
+        if (!baseId || typeof baseId !== 'string' || baseId.trim() === '') {
+            return res.status(400).json({ error: 'baseId es requerido y debe ser una cadena válida' });
+        }
+        const cleanBaseId = baseId.trim().toUpperCase();
+        // Buscar IDs que empiecen con el baseId
+        const students = yield student_1.Student.findAll({
+            where: {
+                studentID: {
+                    [sequelize_1.Op.like]: `${cleanBaseId}%`
+                }
+            },
+            attributes: ['studentID'],
+            order: [['studentID', 'ASC']]
+        });
+        let maxNum = 0;
+        const numericSuffixes = students
+            .map(s => {
+            const studentId = s.get('studentID');
+            const match = studentId.match(new RegExp(`^${cleanBaseId}(\\d+)$`));
+            return match ? parseInt(match[1], 10) : 0;
+        })
+            .filter(num => !isNaN(num) && num > 0);
+        if (numericSuffixes.length > 0) {
+            maxNum = Math.max(...numericSuffixes);
+        }
+        const nextNum = (maxNum + 1).toString().padStart(3, '0');
+        const nextId = `${cleanBaseId}${nextNum}`;
+        return res.json({ nextId });
+    }
+    catch (error) {
+        return res.status(500).json({ error: 'Error al calcular el siguiente ID' });
+    }
+});
+exports.getNextStudentIdSimple = getNextStudentIdSimple;

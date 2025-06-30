@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const Configuracion_Controller_1 = require("../../controllers/MonitoreoControllers/Configuracion.Controller");
+const router = (0, express_1.Router)();
+router.post("/", Configuracion_Controller_1.newConfiguracion);
+router.get("/", Configuracion_Controller_1.getConfiguracion);
+router.put("/:id", Configuracion_Controller_1.updateConfiguracion);
+router.delete("/:id", Configuracion_Controller_1.deleteConfiguracion);
+exports.default = router;

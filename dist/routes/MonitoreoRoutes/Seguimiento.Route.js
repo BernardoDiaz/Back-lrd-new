@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const Seguimiento_Controller_1 = require("../../controllers/MonitoreoControllers/Seguimiento.Controller");
+const router = (0, express_1.Router)();
+router.get("/", Seguimiento_Controller_1.getSeguimiento);
+router.post("/", Seguimiento_Controller_1.NuevoSeguimiento);
+router.put("/:idSeguimiento", Seguimiento_Controller_1.ActualizarSeguimiento);
+router.delete('/:idSeguimiento', Seguimiento_Controller_1.EliminarSeguimiento);
+exports.default = router;
