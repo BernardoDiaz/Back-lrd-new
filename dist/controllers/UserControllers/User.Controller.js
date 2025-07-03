@@ -72,27 +72,36 @@ const loginUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             msg: `Tu contraseña no es correcta, intenta nuevamente`
         });
     }
-    //Si todo se cumplio vamos a la Generacion de token jwt 
+    // Generación de token jwt con el campo rol
     const token = jsonwebtoken_1.default.sign({
         id: uservalidlog.id,
-        username: username,
-        tdo: 'hfgdbverig'
-    }, process.env.SECRET_KEY || '6KgpWr@TtNW4LKMKC5J8o6b6F'); //{ expiresIn: 1800 });
-    //Devolvemos el token y el id como respuesta via JSON
-    res.json({ token: token, id: uservalidlog.id });
+        username: uservalidlog.username,
+        rol: uservalidlog.rol // Incluimos el campo rol en el payload
+    }, process.env.SECRET_KEY || '6KgpWr@TtNW4LKMKC5J8o6b6F');
+    // Respuesta con la estructura solicitada
+    res.json({
+        token: token,
+        user: {
+            id: uservalidlog.id,
+            username: uservalidlog.username,
+            rol: uservalidlog.rol
+        }
+    });
 });
 exports.loginUser = loginUser;
 const getUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     //Generamos la lista
     const listU = yield user_1.user.findAll({ attributes: ['id', 'username', 'rol'] });
     //Devolvemos la respuesta via JSON
+    // Si quieres que el frontend reciba siempre 'rol' y no 'role', no hay que cambiar nada aquí porque ya es 'rol'
     res.json(listU);
 });
 exports.getUsers = getUsers;
 const getUserById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     try {
-        const userbyId = yield user_1.user.findByPk(id, { attributes: ['id', 'username'] });
+        // Incluimos el campo 'rol' en la respuesta
+        const userbyId = yield user_1.user.findByPk(id, { attributes: ['id', 'username', 'rol'] });
         if (!userbyId) {
             return res.status(404).json({
                 msg: "Empresa no encontrada"

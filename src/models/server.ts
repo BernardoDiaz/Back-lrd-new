@@ -58,7 +58,12 @@ class Server {
         this.app.use(express.json({ limit: '100mb' }));
         this.app.use(express.urlencoded({ limit: '100mb', extended: true }));
         //cors
-        this.app.use(cors());
+        this.app.use(cors({
+            origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
+            credentials: true,
+            allowedHeaders: ['Content-Type', 'Authorization'],
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+        }));
     };
  
     async dbConnect() { 

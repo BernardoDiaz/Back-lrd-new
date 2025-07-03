@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFeesByStudentId = exports.getCurrentYearFeesByStudent = exports.getPaymentsByStudent = exports.createPayment = void 0;
+exports.registerMixedPayment = exports.getFeesByStudentId = exports.getCurrentYearFeesByStudent = exports.getPaymentsByStudent = exports.createPayment = void 0;
 const payment_1 = require("../../models/paymentsModels/payment");
 const fee_1 = require("../../models/paymentsModels/fee");
 const enrollment_1 = require("../../models/paymentsModels/enrollment");
@@ -143,3 +143,64 @@ const getFeesByStudentId = (req, res) => __awaiter(void 0, void 0, void 0, funct
     }
 });
 exports.getFeesByStudentId = getFeesByStudentId;
+// Registrar un pago mixto (cuotas, productos, descuentos)
+const registerMixedPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { studentId, year, items, total } = req.body;
+        let monto = 0;
+        let descuento = 0;
+        let montoReal = 0;
+        const detalles = [];
+        const productosRegistrados = [];
+        // Procesar cada item
+        for (const item of items) {
+            if (item.type === 'cuota') {
+                const fee = yield fee_1.Fee.findByPk(item.id);
+                if (fee) {
+                    yield fee.update({ pagado: true, fechaPago: new Date() });
+                    monto += Number(item.amount);
+                    detalles.push({ tipo: 'cuota', id: item.id, status: 'pagado' });
+                }
+                else {
+                    detalles.push({ tipo: 'cuota', id: item.id, status: 'no encontrado' });
+                }
+            }
+            else if (item.type === 'product') {
+                // Registrar el producto como pago individual
+                const cantidad = item.cantidad || 1;
+                const montoProducto = Number(item.amount) * cantidad;
+                const pagoProducto = yield payment_1.Payment.create({
+                    studentId,
+                    concepto: 'producto',
+                    productId: item.id,
+                    monto: item.amount,
+                    descuento: 0,
+                    montoReal: montoProducto,
+                    fecha: new Date(),
+                });
+                monto += montoProducto;
+                productosRegistrados.push(pagoProducto);
+                detalles.push({ tipo: 'producto', id: item.id, cantidad, status: 'registrado', pagoId: pagoProducto.get('id') });
+            }
+            else if (item.type === 'discount') {
+                descuento += Number(item.amount); // debe ser negativo
+                detalles.push({ tipo: 'descuento', id: item.id, monto: item.amount });
+            }
+        }
+        montoReal = monto + descuento;
+        // Registrar el pago general mixto
+        const payment = yield payment_1.Payment.create({
+            studentId,
+            concepto: 'mixto',
+            monto,
+            descuento,
+            montoReal,
+            fecha: new Date(),
+        });
+        res.status(201).json({ payment, productosRegistrados, detalles });
+    }
+    catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+exports.registerMixedPayment = registerMixedPayment;

@@ -125,3 +125,66 @@ export const getFeesByStudentId = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Error al obtener las cuotas', details: (error as Error).message });
     }
 };
+
+// Registrar un pago mixto (cuotas, productos, descuentos)
+export const registerMixedPayment = async (req: Request, res: Response) => {
+    try {
+        const { studentId, year, items, total } = req.body;
+        let monto = 0;
+        let descuento = 0;
+        let montoReal = 0;
+        const detalles: any[] = [];
+        const productosRegistrados: any[] = []; 
+
+        // Procesar cada item
+        for (const item of items) {
+            if (item.type === 'cuota') {
+                const fee = await Fee.findByPk(item.id);
+                if (fee) {
+                    await fee.update({ pagado: true, fechaPago: new Date() });
+                    monto += Number(item.amount);
+                    detalles.push({ tipo: 'cuota', id: item.id, status: 'pagado' });
+                } else {
+                    detalles.push({ tipo: 'cuota', id: item.id, status: 'no encontrado' });
+                }
+            } else if (item.type === 'product') {
+                // Registrar el producto como pago individual
+                const cantidad = item.cantidad || 1;
+                const montoProducto = Number(item.amount) * cantidad;
+                const pagoProducto = await Payment.create({
+                    studentId,
+                    concepto: 'producto',
+                    productId: item.id,
+                    monto: item.amount,
+                    descuento: 0,
+                    montoReal: montoProducto,
+                    fecha: new Date(),
+                });
+                monto += montoProducto;
+                productosRegistrados.push(pagoProducto);
+                detalles.push({ tipo: 'producto', id: item.id, cantidad, status: 'registrado', pagoId: pagoProducto.get('id') });
+            } else if (item.type === 'discount') {
+                descuento += Number(item.amount); // debe ser negativo
+                detalles.push({ tipo: 'descuento', id: item.id, monto: item.amount });
+            }
+        }
+
+        montoReal = monto + descuento;
+
+        // Registrar el pago general mixto
+        const payment = await Payment.create({
+            studentId,
+            concepto: 'mixto',
+            monto,
+            descuento,
+            montoReal,
+            fecha: new Date(),
+        });
+
+        res.status(201).json({ payment, productosRegistrados, detalles });
+    } catch (error) {
+        res.status(400).json({ error: (error as Error).message });
+    }
+};
+
+

@@ -9,7 +9,7 @@ const connection_1 = __importDefault(require("../../db/connection"));
 exports.Payment = connection_1.default.define('payment', {
     id: { type: sequelize_1.DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     studentId: { type: sequelize_1.DataTypes.STRING, allowNull: false },
-    concepto: { type: sequelize_1.DataTypes.ENUM('cuota', 'matricula', 'producto'), allowNull: false },
+    concepto: { type: sequelize_1.DataTypes.ENUM('cuota', 'matricula', 'producto', 'mixto'), allowNull: false },
     feeId: { type: sequelize_1.DataTypes.INTEGER, allowNull: true },
     enrollmentId: { type: sequelize_1.DataTypes.INTEGER, allowNull: true },
     productId: { type: sequelize_1.DataTypes.INTEGER, allowNull: true },

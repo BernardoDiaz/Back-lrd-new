@@ -41,7 +41,6 @@ export const newUser = async (req: Request, res: Response) => {
 };
 //Metodo de loggin para usuarios y generacion de token
 export const loginUser = async (req: Request, res: Response) => {
-
     const { username, password } = req.body;
 
     //validar si el usuario existe en bd
@@ -69,16 +68,22 @@ export const loginUser = async (req: Request, res: Response) => {
             msg: `Tu contraseña no es correcta, intenta nuevamente`
         })
     }
-    //Si todo se cumplio vamos a la Generacion de token jwt 
+    // Generación de token jwt con el campo rol
     const token = Jwt.sign({
-        id: uservalidlog.id, // Incluye el id en el payload del token
-        username: username,
-        tdo:'hfgdbverig'
-    }, process.env.SECRET_KEY || '6KgpWr@TtNW4LKMKC5J8o6b6F'); //{ expiresIn: 1800 });
+        id: uservalidlog.id,
+        username: uservalidlog.username,
+        rol: uservalidlog.rol // Incluimos el campo rol en el payload
+    }, process.env.SECRET_KEY || '6KgpWr@TtNW4LKMKC5J8o6b6F');
 
-    //Devolvemos el token y el id como respuesta via JSON
-    res.json({ token: token, id: uservalidlog.id });
-
+    // Respuesta con la estructura solicitada
+    res.json({
+        token: token,
+        user: {
+            id: uservalidlog.id,
+            username: uservalidlog.username,
+            rol: uservalidlog.rol
+        }
+    });
 };
 
 export const getUsers = async (req: Request, res: Response) => {
@@ -86,13 +91,15 @@ export const getUsers = async (req: Request, res: Response) => {
     const listU = await user.findAll({ attributes: ['id', 'username', 'rol'] });
 
     //Devolvemos la respuesta via JSON
+    // Si quieres que el frontend reciba siempre 'rol' y no 'role', no hay que cambiar nada aquí porque ya es 'rol'
     res.json(listU);
 }
 
 export const getUserById = async (req: Request, res: Response) => {
     const { id } = req.params;
     try {
-        const userbyId = await user.findByPk(id,{attributes:['id','username']});
+        // Incluimos el campo 'rol' en la respuesta
+        const userbyId = await user.findByPk(id,{attributes:['id','username','rol']});
         if (!userbyId) {
             return res.status(404).json({
                 msg: "Empresa no encontrada"
