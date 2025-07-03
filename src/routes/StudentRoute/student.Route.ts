@@ -8,6 +8,8 @@ import { authorizeRole } from '../../middlewares/authorizeRole';
 
 const router = Router();
 
+// ¡IMPORTANTE! Primero las rutas más específicas:
+router.get('/next-id', validateToken, authorizeRole('Administrador', 'Colecturia', 'Atencion al estudiante'), getNextStudentIdSimple);
 router.post('/', validateToken, authorizeRole('Administrador', 'Colecturia', 'Atencion al estudiante'), createAspirant);
 router.get('/', validateToken, authorizeRole('Administrador', 'Colecturia', 'Atencion al estudiante'), getAllStudents);
 router.get('/:id', validateToken, authorizeRole('Administrador', 'Colecturia', 'Atencion al estudiante'), getStudentById);

@@ -8,6 +8,8 @@ const Student_Controller_1 = require("../../controllers/StudentControllers/Stude
 const validate_token_1 = __importDefault(require("../../routes/UserRoute/validate-token"));
 const authorizeRole_1 = require("../../middlewares/authorizeRole");
 const router = (0, express_1.Router)();
+// ¡IMPORTANTE! Primero las rutas más específicas:
+router.get('/next-id', validate_token_1.default, (0, authorizeRole_1.authorizeRole)('Administrador', 'Colecturia', 'Atencion al estudiante'), Student_Controller_1.getNextStudentIdSimple);
 router.post('/', validate_token_1.default, (0, authorizeRole_1.authorizeRole)('Administrador', 'Colecturia', 'Atencion al estudiante'), Student_Controller_1.createAspirant);
 router.get('/', validate_token_1.default, (0, authorizeRole_1.authorizeRole)('Administrador', 'Colecturia', 'Atencion al estudiante'), Student_Controller_1.getAllStudents);
 router.get('/:id', validate_token_1.default, (0, authorizeRole_1.authorizeRole)('Administrador', 'Colecturia', 'Atencion al estudiante'), Student_Controller_1.getStudentById);

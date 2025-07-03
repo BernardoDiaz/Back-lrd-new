@@ -75,6 +75,21 @@ class Server {
             await Enrollment.sync();
             await Payment.sync();
             await FeeConfig.sync();
+            // Crear FeeConfig por defecto si no existen
+            const niveles = [
+                'Inicial',
+                'Parvularia',
+                'Primer Ciclo',
+                'Segundo Ciclo',
+                'Tercer Ciclo',
+                'Bachillerato'
+            ];
+            for (const nivel of niveles) {
+                const exists = await FeeConfig.findOne({ where: { nivel } });
+                if (!exists) {
+                    await FeeConfig.create({ nivel, montoCuota: 35, montoMatricula: 350 });
+                }
+            }
             await ProductCategory.sync();
             await Product.sync();
             console.log('Connection valid');

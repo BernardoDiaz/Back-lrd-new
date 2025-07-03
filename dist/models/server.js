@@ -85,6 +85,21 @@ class Server {
                 yield enrollment_1.Enrollment.sync();
                 yield payment_1.Payment.sync();
                 yield feeConfig_1.FeeConfig.sync();
+                // Crear FeeConfig por defecto si no existen
+                const niveles = [
+                    'Inicial',
+                    'Parvularia',
+                    'Primer Ciclo',
+                    'Segundo Ciclo',
+                    'Tercer Ciclo',
+                    'Bachillerato'
+                ];
+                for (const nivel of niveles) {
+                    const exists = yield feeConfig_1.FeeConfig.findOne({ where: { nivel } });
+                    if (!exists) {
+                        yield feeConfig_1.FeeConfig.create({ nivel, montoCuota: 35, montoMatricula: 350 });
+                    }
+                }
                 yield productCategory_1.ProductCategory.sync();
                 yield product_1.Product.sync();
                 console.log('Connection valid');

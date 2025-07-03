@@ -21,6 +21,7 @@ exports.Student = connection_1.default.define('student', {
     nombreContactoEmergencia: { type: sequelize_1.DataTypes.STRING, allowNull: false },
     telefonoContactoEmergencia: { type: sequelize_1.DataTypes.STRING, allowNull: false },
     tipo: { type: sequelize_1.DataTypes.ENUM('aspirante', 'estudiante'), defaultValue: 'aspirante' },
-    estado: { type: sequelize_1.DataTypes.ENUM('activo', 'inactivo'), defaultValue: 'activo' }
+    estado: { type: sequelize_1.DataTypes.ENUM('activo', 'inactivo'), defaultValue: 'activo' },
+    year: { type: sequelize_1.DataTypes.INTEGER, allowNull: true }
     // ...otros campos necesarios
 });

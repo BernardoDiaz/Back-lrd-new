@@ -16,7 +16,7 @@ export const Student = sequelize.define('student', {
     nombreContactoEmergencia: { type: DataTypes.STRING, allowNull: false },
     telefonoContactoEmergencia: { type: DataTypes.STRING, allowNull: false },
     tipo: { type: DataTypes.ENUM('aspirante', 'estudiante'), defaultValue: 'aspirante' },
-    estado: { type: DataTypes.ENUM('activo', 'inactivo'), defaultValue: 'activo' }
+    estado: { type: DataTypes.ENUM('activo', 'inactivo'), defaultValue: 'activo' },
+    year: { type: DataTypes.INTEGER, allowNull: true }
     // ...otros campos necesarios
 });
- 
