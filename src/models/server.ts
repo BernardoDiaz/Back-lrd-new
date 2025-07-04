@@ -58,8 +58,18 @@ class Server {
         this.app.use(express.json({ limit: '100mb' }));
         this.app.use(express.urlencoded({ limit: '100mb', extended: true }));
         //cors
+        const allowedOrigins = [
+            'http://localhost:4200',
+            'http://saa.liceoreydavid.net'
+        ];
         this.app.use(cors({
-            origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
+            origin: (origin, callback) => {
+                if (!origin || allowedOrigins.includes(origin)) {
+                    callback(null, true);
+                } else {
+                    callback(new Error('No permitido por CORS'));
+                }
+            },
             credentials: true,
             allowedHeaders: ['Content-Type', 'Authorization'],
             methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
