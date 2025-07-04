@@ -135,8 +135,8 @@ const createEnrollmentAndFeesForYear = (req, res) => __awaiter(void 0, void 0, v
             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre'
         ];
         // Verificación adicional para TypeScript
-        if (!paymentBook) {
-            return res.status(500).json({ error: "Error al crear o encontrar el talonario de pagos" });
+        if (!paymentBook || !paymentBook.get('id')) {
+            return res.status(500).json({ error: "Error al crear o encontrar el talonario de pagos (id nulo)" });
         }
         const cuotas = meses.map(mes => ({
             paymentBookId: paymentBook.get('id'),

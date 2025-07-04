@@ -135,12 +135,12 @@ export const createEnrollmentAndFeesForYear = async (req: Request, res: Response
         ];
 
         // Verificación adicional para TypeScript
-        if (!paymentBook) {
-            return res.status(500).json({ error: "Error al crear o encontrar el talonario de pagos" });
+        if (!paymentBook || !paymentBook.get('id')) {
+            return res.status(500).json({ error: "Error al crear o encontrar el talonario de pagos (id nulo)" });
         }
 
         const cuotas = meses.map(mes => ({
-            paymentBookId: paymentBook.get('id'), 
+            paymentBookId: (paymentBook as any).get('id'),
             studentId,
             mes,
             monto: cuotaFinal,
