@@ -73,11 +73,14 @@ const loginUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         });
     }
     // Generación de token jwt con el campo rol
+    const secret = process.env.SECRET_KEY;
+    if (!secret)
+        throw new Error('SECRET_KEY no definida en variables de entorno');
     const token = jsonwebtoken_1.default.sign({
         id: uservalidlog.id,
         username: uservalidlog.username,
         rol: uservalidlog.rol // Incluimos el campo rol en el payload
-    }, process.env.SECRET_KEY || '6KgpWr@TtNW4LKMKC5J8o6b6F');
+    }, secret);
     // Respuesta con la estructura solicitada
     res.json({
         token: token,

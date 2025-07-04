@@ -16,7 +16,9 @@ export function authorizeRole(...allowedRoles: string[]) {
                 console.error('Token no válido');
                 return res.status(401).json({ msg: 'Token no válido' });
             }
-            const decoded: any = Jwt.verify(token, process.env.SECRET_KEY || '6KgpWr@TtNW4LKMKC5J8o6b6F');
+            const secret = process.env.SECRET_KEY;
+            if (!secret) throw new Error('SECRET_KEY no definida en variables de entorno');
+            const decoded: any = Jwt.verify(token, secret);
             console.log('Payload decodificado del JWT:', decoded);
             if (!decoded || !decoded.rol) {
                 console.error('No autorizado: rol no encontrado en el token');

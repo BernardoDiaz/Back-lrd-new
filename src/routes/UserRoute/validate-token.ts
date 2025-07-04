@@ -10,8 +10,9 @@ const validateToken = (req: Request, res: Response, next: NextFunction) => {
         try {
             //corte de token firmado por nuestro servidor
             const bearerToken = headerToken.slice(7);
-
-            Jwt.verify(bearerToken, process.env.SECRET_KEY || 'o6b6F6KgpWrLKMKC5J8@TtNW4');
+            const secret = process.env.SECRET_KEY;
+            if (!secret) throw new Error('SECRET_KEY no definida en variables de entorno');
+            Jwt.verify(bearerToken, secret);
 
             next();
 
