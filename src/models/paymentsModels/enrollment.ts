@@ -7,5 +7,6 @@ export const Enrollment = sequelize.define('enrollment', {
     montoTotal: { type: DataTypes.DECIMAL(10,2), allowNull: false },
     montoPagado: { type: DataTypes.DECIMAL(10,2), defaultValue: 0 },
     saldo: { type: DataTypes.DECIMAL(10,2), defaultValue: 0 },
+    descuento: { type: DataTypes.DECIMAL(10,2), defaultValue: 0 }, // Nuevo campo para descuentos
     year: { type: DataTypes.INTEGER, allowNull: false }
-});
+}); 

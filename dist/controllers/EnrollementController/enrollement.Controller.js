@@ -27,7 +27,7 @@ const getEnrollmentByStudentId = (req, res) => __awaiter(void 0, void 0, void 0,
             where.year = year;
         }
         const enrollments = yield enrollment_1.Enrollment.findAll({
-            attributes: ['id', 'montoTotal', 'montoPagado', 'saldo', 'year'],
+            attributes: ['id', 'montoTotal', 'montoPagado', 'saldo', 'descuento', 'year'],
             where
         });
         res.json(enrollments);
@@ -37,12 +37,11 @@ const getEnrollmentByStudentId = (req, res) => __awaiter(void 0, void 0, void 0,
     }
 });
 exports.getEnrollmentByStudentId = getEnrollmentByStudentId;
-// Actualizar montoPagado y saldo de la matrícula por studentId y registrar la cuota pagada
+// Actualizar montoPagado, saldo y descuento de la matrícula por studentId y registrar la cuota pagada
 const updateEnrollmentPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { studentId } = req.params;
         const { montoPagado, feeId, descuento = 0 } = req.body;
-        const montoReal = Number(montoPagado) - Number(descuento);
         const currentYear = new Date().getFullYear();
         // Buscar todas las matrículas del estudiante
         const enrollments = yield enrollment_1.Enrollment.findAll({ where: { studentId, id: feeId } });
@@ -57,18 +56,36 @@ const updateEnrollmentPayment = (req, res) => __awaiter(void 0, void 0, void 0, 
         if (!enrollment) {
             return res.status(404).json({ msg: "Matrícula no encontrada para el año actual" });
         }
-        // Sumar el montoPagado enviado al ya existente
+        // El montoPagado incluye el valor total que se aplica al saldo
         let montoPagadoActual = enrollment.get("montoPagado");
         if (typeof montoPagadoActual !== "number") {
             montoPagadoActual = parseFloat(montoPagadoActual);
         }
-        const nuevoPagado = montoPagadoActual + montoReal;
         let montoTotal = enrollment.get("montoTotal");
         if (typeof montoTotal !== "number") {
             montoTotal = parseFloat(montoTotal);
         }
-        const saldo = montoTotal - nuevoPagado;
-        yield enrollment.update({ montoPagado: nuevoPagado, saldo });
+        let descuentoActual = enrollment.get("descuento") || 0;
+        if (typeof descuentoActual !== "number") {
+            descuentoActual = parseFloat(descuentoActual);
+        }
+        // montoPagado viene como lo realmente pagado
+        // El total efectivo se reduce por el descuento aplicado
+        const pagoReal = Number(montoPagado) - Number(descuento);
+        const nuevoPagado = montoPagadoActual + pagoReal;
+        const nuevoDescuento = descuentoActual + Number(descuento);
+        // El total efectivo es el original menos todos los descuentos
+        const nuevoMontoTotal = montoTotal - Number(descuento);
+        // Saldo = total efectivo - pagado
+        let saldo = nuevoMontoTotal - nuevoPagado;
+        if (saldo < 0)
+            saldo = 0;
+        yield enrollment.update({
+            montoPagado: nuevoPagado,
+            saldo,
+            descuento: nuevoDescuento,
+            montoTotal: nuevoMontoTotal // Actualizar también el montoTotal
+        });
         // Si se envía feeId, marcar la cuota como pagada
         if (feeId) {
             const fee = yield fee_1.Fee.findByPk(feeId);
@@ -88,7 +105,7 @@ exports.updateEnrollmentPayment = updateEnrollmentPayment;
 const createEnrollmentAndFeesForYear = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { studentId } = req.params;
-        const { year, nivel, grado } = req.body;
+        const { year, nivel, grado, descuento = 0 } = req.body; // Permitir descuento opcional
         if (!year || !nivel || !grado) {
             return res.status(400).json({ msg: "Datos incompletos: year, nivel y grado son requeridos" });
         }
@@ -110,13 +127,15 @@ const createEnrollmentAndFeesForYear = (req, res) => __awaiter(void 0, void 0, v
             return res.status(404).json({ msg: "Estudiante no encontrado" });
         }
         yield student.update({ nivel, grado });
-        // Crear matrícula
+        // Crear matrícula con saldo que considera descuento inicial
+        const saldoInicial = Number(matriculaFinal) - Number(descuento);
         const enrollment = yield enrollment_1.Enrollment.create({
             studentId,
             montoTotal: matriculaFinal,
             montoPagado: 0,
-            saldo: matriculaFinal,
-            year
+            saldo: saldoInicial,
+            year,
+            descuento // Guardar descuento si se envía
         });
         // Verificar si ya existe un talonario para este año
         let paymentBook = yield paymentBook_1.PaymentBook.findOne({

@@ -10,16 +10,14 @@ export const getEnrollmentByStudentId = async (req: Request, res: Response) => {
     try {
         const { studentId, year: yearParam } = req.params; 
         const { year: yearQuery } = req.query;
-        
         // El año puede venir como parámetro de la URL o como query parameter
         const year = yearParam || yearQuery;
-        
         let where: any = { studentId };
         if (year) {
             where.year = year;
         }
         const enrollments = await Enrollment.findAll({ 
-            attributes:['id','montoTotal', 'montoPagado', 'saldo', 'year'],
+            attributes:['id','montoTotal', 'montoPagado', 'saldo', 'descuento', 'year'], // Se agrega descuento
             where
         });
         res.json(enrollments);
@@ -28,12 +26,11 @@ export const getEnrollmentByStudentId = async (req: Request, res: Response) => {
     }
 };
 
-// Actualizar montoPagado y saldo de la matrícula por studentId y registrar la cuota pagada
+// Actualizar montoPagado, saldo y descuento de la matrícula por studentId y registrar la cuota pagada
 export const updateEnrollmentPayment = async (req: Request, res: Response) => {
     try {
         const { studentId } = req.params;
         const { montoPagado, feeId, descuento = 0 } = req.body;
-        const montoReal = Number(montoPagado) - Number(descuento);
         const currentYear = new Date().getFullYear();
         // Buscar todas las matrículas del estudiante
         const enrollments = await Enrollment.findAll({ where: { studentId, id:feeId } });
@@ -47,18 +44,38 @@ export const updateEnrollmentPayment = async (req: Request, res: Response) => {
         if (!enrollment) {
             return res.status(404).json({ msg: "Matrícula no encontrada para el año actual" });
         }
-        // Sumar el montoPagado enviado al ya existente
+        // El montoPagado incluye el valor total que se aplica al saldo
         let montoPagadoActual = enrollment.get("montoPagado");
         if (typeof montoPagadoActual !== "number") {
             montoPagadoActual = parseFloat(montoPagadoActual as string);
         }
-        const nuevoPagado = (montoPagadoActual as number) + montoReal;
         let montoTotal = enrollment.get("montoTotal");
         if (typeof montoTotal !== "number") {
             montoTotal = parseFloat(montoTotal as string);
         }
-        const saldo = (montoTotal as number) - nuevoPagado;
-        await enrollment.update({ montoPagado: nuevoPagado, saldo });
+        let descuentoActual = enrollment.get("descuento") || 0;
+        if (typeof descuentoActual !== "number") {
+            descuentoActual = parseFloat(descuentoActual as string);
+        }
+        // montoPagado viene como lo realmente pagado
+        // El total efectivo se reduce por el descuento aplicado
+        const pagoReal = Number(montoPagado) - Number(descuento);
+        const nuevoPagado = (montoPagadoActual as number) + pagoReal;
+        const nuevoDescuento = (descuentoActual as number) + Number(descuento);
+        
+        // El total efectivo es el original menos todos los descuentos
+        const nuevoMontoTotal = (montoTotal as number) - Number(descuento);
+        
+        // Saldo = total efectivo - pagado
+        let saldo = nuevoMontoTotal - nuevoPagado;
+        if (saldo < 0) saldo = 0;
+        
+        await enrollment.update({ 
+            montoPagado: nuevoPagado, 
+            saldo, 
+            descuento: nuevoDescuento,
+            montoTotal: nuevoMontoTotal // Actualizar también el montoTotal
+        });
         // Si se envía feeId, marcar la cuota como pagada
         if (feeId) {
             const fee = await Fee.findByPk(feeId);
@@ -77,49 +94,42 @@ export const updateEnrollmentPayment = async (req: Request, res: Response) => {
 export const createEnrollmentAndFeesForYear = async (req: Request, res: Response) => {
     try {
         const { studentId } = req.params;
-        const { year, nivel, grado } = req.body;
-        
+        const { year, nivel, grado, descuento = 0 } = req.body; // Permitir descuento opcional
         if (!year || !nivel || !grado) {
             return res.status(400).json({ msg: "Datos incompletos: year, nivel y grado son requeridos" });
         }
-
         // Verificar si ya existe matrícula para ese año
         const existing = await Enrollment.findOne({ where: { studentId, year } });
         if (existing) {
             return res.status(409).json({ msg: "Ya existe matrícula para ese año" });
         }
-
         // Buscar configuración de montos por nivel
         const config = await FeeConfig.findOne({ where: { nivel } });
         if (!config) {
             return res.status(400).json({ msg: 'No existe configuración de montos para el nivel especificado.' });
         }
-
         const cuotaFinal = config.get('montoCuota');
         const matriculaFinal = config.get('montoMatricula');
-
         // Actualizar nivel y grado del estudiante
         const student = await Student.findOne({ where: { studentID: studentId } });
         if (!student) {
             return res.status(404).json({ msg: "Estudiante no encontrado" });
         }
-
         await student.update({ nivel, grado });
-
-        // Crear matrícula
+        // Crear matrícula con saldo que considera descuento inicial
+        const saldoInicial = Number(matriculaFinal) - Number(descuento);
         const enrollment = await Enrollment.create({ 
             studentId, 
             montoTotal: matriculaFinal, 
             montoPagado: 0, 
-            saldo: matriculaFinal, 
-            year 
+            saldo: saldoInicial, 
+            year,
+            descuento // Guardar descuento si se envía
         });
-
         // Verificar si ya existe un talonario para este año
         let paymentBook = await PaymentBook.findOne({ 
             where: { studentId, year } 
         });
-
         // Si no existe, crear uno nuevo
         if (!paymentBook) {
             paymentBook = await PaymentBook.create({ 
@@ -127,18 +137,15 @@ export const createEnrollmentAndFeesForYear = async (req: Request, res: Response
                 year 
             });
         }
-
         // Generar automáticamente 11 cuotas (enero a noviembre)
         const meses = [
             'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre'
         ];
-
         // Verificación adicional para TypeScript
         if (!paymentBook || !paymentBook.get('id')) {
             return res.status(500).json({ error: "Error al crear o encontrar el talonario de pagos (id nulo)" });
         }
-
         const cuotas = meses.map(mes => ({
             paymentBookId: (paymentBook as any).get('id'),
             studentId,
@@ -147,9 +154,7 @@ export const createEnrollmentAndFeesForYear = async (req: Request, res: Response
             pagado: false,
             year
         }));
-
         const fees = await Fee.bulkCreate(cuotas);
-
         res.status(201).json({ 
             enrollment, 
             fees,
