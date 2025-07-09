@@ -42,7 +42,7 @@ export const createAspirant = async (req: Request, res: Response) => {
             direccion,
             matricula,
             nivel,
-            grado,
+            grado, 
             nombreContactoEmergencia,
             telefonoContactoEmergencia,
             tipo,
