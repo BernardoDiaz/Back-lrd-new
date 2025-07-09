@@ -32,7 +32,7 @@ export const getEnrollmentByStudentId = async (req: Request, res: Response) => {
 export const updateEnrollmentPayment = async (req: Request, res: Response) => {
     try {
         const { studentId } = req.params;
-        const { montoPagado, feeId, descuento = 0 } = req.body;
+        const { montoPagado, feeId, descuento = 0, metodoPago, bancoDestino } = req.body;
         const currentYear = new Date().getFullYear();
         // Buscar todas las matrículas del estudiante
         const enrollments = await Enrollment.findAll({ where: { studentId, id:feeId } });
@@ -85,6 +85,8 @@ export const updateEnrollmentPayment = async (req: Request, res: Response) => {
                 descuento, 
                 montoReal: pagoReal,
                 fecha: new Date(),
+                metodoPago,
+                bancoDestino
             });
         } else {
             payment = await Payment.create({
@@ -95,11 +97,13 @@ export const updateEnrollmentPayment = async (req: Request, res: Response) => {
                 descuento,
                 montoReal: pagoReal,
                 fecha: new Date(),
+                metodoPago,
+                bancoDestino
             });
         }
         console.log('Pago creado:', payment.get('id'));
         try {
-            const recibo = await PaymentReceipt.create({ paymentId: payment.get('id'), amount: pagoReal, status: 'emitido', issuedAt: new Date(), notes: feeId ? 'Pago de cuota desde matrícula' : 'Pago de matrícula desde matrícula' });
+            const recibo = await PaymentReceipt.create({ paymentId: payment.get('id'), amount: pagoReal, status: 'emitido', issuedAt: new Date(), notes: feeId ? 'Pago de cuota desde matrícula' : 'Pago de matrícula desde matrícula', metodoPago, bancoDestino });
             console.log('Recibo creado:', recibo.get('id'));
         } catch (err) {
             console.error('Error creando recibo:', err);

@@ -41,6 +41,15 @@ const PaymentReceipt = sequelize.define('PaymentReceipt', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  metodoPago: {
+    type: DataTypes.ENUM('efectivo', 'tarjeta'),
+    allowNull: false,
+    defaultValue: 'efectivo',
+  },
+  bancoDestino: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 }, {
   tableName: 'payment_receipts',
   timestamps: false,

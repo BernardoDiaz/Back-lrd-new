@@ -4,11 +4,13 @@ import { Op } from 'sequelize';
 
 export const createReceipt = async (req: Request, res: Response) => {
   try {
-    const { paymentId, amount, notes } = req.body;
+    const { paymentId, amount, notes, metodoPago = 'efectivo', bancoDestino = null } = req.body;
     const receipt = await PaymentReceipt.create({
       paymentId,
       amount,
       notes,
+      metodoPago,
+      bancoDestino,
       status: 'emitido',
       issuedAt: new Date(),
     });
@@ -57,5 +59,21 @@ export const getReceiptById = async (req: Request, res: Response) => {
     res.json(receipt);
   } catch (error) {
     res.status(500).json({ message: 'Error obteniendo recibo', error });
+  }
+};
+
+export const getNextReceiptNumber = async (_req: Request, res: Response) => {
+  try {
+    const maxIdRaw = await PaymentReceipt.max('id');
+    let maxId = 0;
+    if (typeof maxIdRaw === 'number') {
+      maxId = maxIdRaw;
+    } else if (typeof maxIdRaw === 'string') {
+      maxId = parseInt(maxIdRaw, 10) || 0;
+    }
+    const nextNumber = String(maxId + 1).padStart(7, '0');
+    res.json({ nextReceiptNumber: nextNumber });
+  } catch (error) {
+    res.status(500).json({ message: 'Error obteniendo el próximo número de recibo', error });
   }
 };

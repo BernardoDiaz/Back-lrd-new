@@ -11,15 +11,16 @@ export const createPayment = async (req: Request, res: Response) => {
         const { studentId, pagos } = req.body;
         // Si viene un solo pago (compatibilidad)
         if (!pagos) {
-            const { concepto, feeId, enrollmentId, productId, monto, descuento = 0 } = req.body;
+            console.log('Payload recibido (pago único):', req.body);
+            const { concepto, feeId, enrollmentId, productId, monto, descuento = 0, metodoPago = 'efectivo', bancoDestino = null } = req.body;
             const montoReal = Number(monto) - Number(descuento);
             let payment;
             if (concepto === 'cuota' && feeId) {
-                payment = await Payment.create({ studentId, concepto, feeId, monto, descuento, montoReal });
+                payment = await Payment.create({ studentId, concepto, feeId, monto, descuento, montoReal, metodoPago, bancoDestino });
                 const fee = await Fee.findByPk(feeId);
                 if (fee) await fee.update({ pagado: true, fechaPago: new Date() });
             } else if (concepto === 'matricula' && enrollmentId) {
-                payment = await Payment.create({ studentId, concepto, enrollmentId, monto, descuento, montoReal });
+                payment = await Payment.create({ studentId, concepto, enrollmentId, monto, descuento, montoReal, metodoPago, bancoDestino });
                 const enrollment = await Enrollment.findByPk(enrollmentId);
                 if (enrollment) {
                     const nuevoPagado = Number(enrollment.get('montoPagado')) + montoReal;
@@ -27,26 +28,27 @@ export const createPayment = async (req: Request, res: Response) => {
                     await enrollment.update({ montoPagado: nuevoPagado, saldo });
                 }
             } else if (concepto === 'producto' && productId) {
-                payment = await Payment.create({ studentId, concepto, productId, monto, descuento, montoReal });
+                payment = await Payment.create({ studentId, concepto, productId, monto, descuento, montoReal, metodoPago, bancoDestino });
             } else {
-                payment = await Payment.create({ studentId, concepto, monto, descuento, montoReal });
+                payment = await Payment.create({ studentId, concepto, monto, descuento, montoReal, metodoPago, bancoDestino });
             }
             // Registrar recibo para cualquier tipo de pago
-            await PaymentReceipt.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}` });
+            await PaymentReceipt.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}`, metodoPago, bancoDestino });
             return res.status(201).json(payment);
         }
         // Si viene un array de pagos
         const resultados = [];
+        console.log('Payload recibido (pagos múltiples):', pagos);
         for (const pago of pagos) {
-            const { concepto, feeId, enrollmentId, productId, monto, descuento = 0 } = pago;
+            const { concepto, feeId, enrollmentId, productId, monto, descuento = 0, metodoPago = 'efectivo', bancoDestino = null } = pago;
             const montoReal = Number(monto) - Number(descuento);
             let payment;
             if (concepto === 'cuota' && feeId) {
-                payment = await Payment.create({ studentId, concepto, feeId, monto, descuento, montoReal });
+                payment = await Payment.create({ studentId, concepto, feeId, monto, descuento, montoReal, metodoPago, bancoDestino });
                 const fee = await Fee.findByPk(feeId);
                 if (fee) await fee.update({ pagado: true, fechaPago: new Date() });
             } else if (concepto === 'matricula' && enrollmentId) {
-                payment = await Payment.create({ studentId, concepto, enrollmentId, monto, descuento, montoReal });
+                payment = await Payment.create({ studentId, concepto, enrollmentId, monto, descuento, montoReal, metodoPago, bancoDestino });
                 const enrollment = await Enrollment.findByPk(enrollmentId);
                 if (enrollment) {
                     const nuevoPagado = Number(enrollment.get('montoPagado')) + montoReal;
@@ -54,12 +56,12 @@ export const createPayment = async (req: Request, res: Response) => {
                     await enrollment.update({ montoPagado: nuevoPagado, saldo });
                 }
             } else if (concepto === 'producto' && productId) {
-                payment = await Payment.create({ studentId, concepto, productId, monto, descuento, montoReal });
+                payment = await Payment.create({ studentId, concepto, productId, monto, descuento, montoReal, metodoPago, bancoDestino });
             } else {
-                payment = await Payment.create({ studentId, concepto, monto, descuento, montoReal });
+                payment = await Payment.create({ studentId, concepto, monto, descuento, montoReal, metodoPago, bancoDestino });
             }
             // Registrar recibo para cualquier tipo de pago
-            await PaymentReceipt.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}` });
+            await PaymentReceipt.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}`, metodoPago, bancoDestino });
             resultados.push(payment);
         }
         res.status(201).json(resultados);
@@ -131,7 +133,7 @@ export const getFeesByStudentId = async (req: Request, res: Response) => {
 // Registrar un pago mixto (cuotas, productos, descuentos)
 export const registerMixedPayment = async (req: Request, res: Response) => {
     try {
-        const { studentId, year, items, total } = req.body;
+        const { studentId, year, items, total, metodoPago, bancoDestino} = req.body;
         let monto = 0;
         let descuento = 0;
         let montoReal = 0;
@@ -161,12 +163,14 @@ export const registerMixedPayment = async (req: Request, res: Response) => {
                     descuento: 0,
                     montoReal: montoProducto,
                     fecha: new Date(),
+                    metodoPago,
+                    bancoDestino
                 });
                 monto += montoProducto;
                 productosRegistrados.push(pagoProducto);
                 detalles.push({ tipo: 'producto', id: item.id, cantidad, status: 'registrado', pagoId: pagoProducto.get('id') });
                 // Registrar recibo para producto
-                await PaymentReceipt.create({ paymentId: pagoProducto.get('id'), amount: montoProducto, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para producto' });
+                await PaymentReceipt.create({ paymentId: pagoProducto.get('id'), amount: montoProducto, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para producto', metodoPago, bancoDestino });
             } else if (item.type === 'discount') {
                 descuento += Number(item.amount); // debe ser negativo
                 detalles.push({ tipo: 'descuento', id: item.id, monto: item.amount });
@@ -184,9 +188,11 @@ export const registerMixedPayment = async (req: Request, res: Response) => {
             descuento,
             montoReal,
             fecha: new Date(),
+            metodoPago,
+            bancoDestino
         });
         // Registrar recibo para pago mixto
-        await PaymentReceipt.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para pago mixto' });
+        await PaymentReceipt.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para pago mixto', metodoPago, bancoDestino });
         res.status(201).json({ payment, productosRegistrados, detalles });
     } catch (error) {
         res.status(400).json({ error: (error as Error).message });

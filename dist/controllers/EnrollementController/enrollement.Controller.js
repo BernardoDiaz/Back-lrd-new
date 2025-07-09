@@ -46,7 +46,7 @@ exports.getEnrollmentByStudentId = getEnrollmentByStudentId;
 const updateEnrollmentPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { studentId } = req.params;
-        const { montoPagado, feeId, descuento = 0 } = req.body;
+        const { montoPagado, feeId, descuento = 0, metodoPago, bancoDestino } = req.body;
         const currentYear = new Date().getFullYear();
         // Buscar todas las matrículas del estudiante
         const enrollments = yield enrollment_1.Enrollment.findAll({ where: { studentId, id: feeId } });
@@ -101,6 +101,8 @@ const updateEnrollmentPayment = (req, res) => __awaiter(void 0, void 0, void 0, 
                 descuento,
                 montoReal: pagoReal,
                 fecha: new Date(),
+                metodoPago,
+                bancoDestino
             });
         }
         else {
@@ -112,11 +114,13 @@ const updateEnrollmentPayment = (req, res) => __awaiter(void 0, void 0, void 0, 
                 descuento,
                 montoReal: pagoReal,
                 fecha: new Date(),
+                metodoPago,
+                bancoDestino
             });
         }
         console.log('Pago creado:', payment.get('id'));
         try {
-            const recibo = yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: pagoReal, status: 'emitido', issuedAt: new Date(), notes: feeId ? 'Pago de cuota desde matrícula' : 'Pago de matrícula desde matrícula' });
+            const recibo = yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: pagoReal, status: 'emitido', issuedAt: new Date(), notes: feeId ? 'Pago de cuota desde matrícula' : 'Pago de matrícula desde matrícula', metodoPago, bancoDestino });
             console.log('Recibo creado:', recibo.get('id'));
         }
         catch (err) {

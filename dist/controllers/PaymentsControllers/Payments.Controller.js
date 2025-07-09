@@ -24,17 +24,18 @@ const createPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         const { studentId, pagos } = req.body;
         // Si viene un solo pago (compatibilidad)
         if (!pagos) {
-            const { concepto, feeId, enrollmentId, productId, monto, descuento = 0 } = req.body;
+            console.log('Payload recibido (pago único):', req.body);
+            const { concepto, feeId, enrollmentId, productId, monto, descuento = 0, metodoPago = 'efectivo', bancoDestino = null } = req.body;
             const montoReal = Number(monto) - Number(descuento);
             let payment;
             if (concepto === 'cuota' && feeId) {
-                payment = yield payment_1.Payment.create({ studentId, concepto, feeId, monto, descuento, montoReal });
+                payment = yield payment_1.Payment.create({ studentId, concepto, feeId, monto, descuento, montoReal, metodoPago, bancoDestino });
                 const fee = yield fee_1.Fee.findByPk(feeId);
                 if (fee)
                     yield fee.update({ pagado: true, fechaPago: new Date() });
             }
             else if (concepto === 'matricula' && enrollmentId) {
-                payment = yield payment_1.Payment.create({ studentId, concepto, enrollmentId, monto, descuento, montoReal });
+                payment = yield payment_1.Payment.create({ studentId, concepto, enrollmentId, monto, descuento, montoReal, metodoPago, bancoDestino });
                 const enrollment = yield enrollment_1.Enrollment.findByPk(enrollmentId);
                 if (enrollment) {
                     const nuevoPagado = Number(enrollment.get('montoPagado')) + montoReal;
@@ -43,29 +44,30 @@ const createPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 }
             }
             else if (concepto === 'producto' && productId) {
-                payment = yield payment_1.Payment.create({ studentId, concepto, productId, monto, descuento, montoReal });
+                payment = yield payment_1.Payment.create({ studentId, concepto, productId, monto, descuento, montoReal, metodoPago, bancoDestino });
             }
             else {
-                payment = yield payment_1.Payment.create({ studentId, concepto, monto, descuento, montoReal });
+                payment = yield payment_1.Payment.create({ studentId, concepto, monto, descuento, montoReal, metodoPago, bancoDestino });
             }
             // Registrar recibo para cualquier tipo de pago
-            yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}` });
+            yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}`, metodoPago, bancoDestino });
             return res.status(201).json(payment);
         }
         // Si viene un array de pagos
         const resultados = [];
+        console.log('Payload recibido (pagos múltiples):', pagos);
         for (const pago of pagos) {
-            const { concepto, feeId, enrollmentId, productId, monto, descuento = 0 } = pago;
+            const { concepto, feeId, enrollmentId, productId, monto, descuento = 0, metodoPago = 'efectivo', bancoDestino = null } = pago;
             const montoReal = Number(monto) - Number(descuento);
             let payment;
             if (concepto === 'cuota' && feeId) {
-                payment = yield payment_1.Payment.create({ studentId, concepto, feeId, monto, descuento, montoReal });
+                payment = yield payment_1.Payment.create({ studentId, concepto, feeId, monto, descuento, montoReal, metodoPago, bancoDestino });
                 const fee = yield fee_1.Fee.findByPk(feeId);
                 if (fee)
                     yield fee.update({ pagado: true, fechaPago: new Date() });
             }
             else if (concepto === 'matricula' && enrollmentId) {
-                payment = yield payment_1.Payment.create({ studentId, concepto, enrollmentId, monto, descuento, montoReal });
+                payment = yield payment_1.Payment.create({ studentId, concepto, enrollmentId, monto, descuento, montoReal, metodoPago, bancoDestino });
                 const enrollment = yield enrollment_1.Enrollment.findByPk(enrollmentId);
                 if (enrollment) {
                     const nuevoPagado = Number(enrollment.get('montoPagado')) + montoReal;
@@ -74,13 +76,13 @@ const createPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 }
             }
             else if (concepto === 'producto' && productId) {
-                payment = yield payment_1.Payment.create({ studentId, concepto, productId, monto, descuento, montoReal });
+                payment = yield payment_1.Payment.create({ studentId, concepto, productId, monto, descuento, montoReal, metodoPago, bancoDestino });
             }
             else {
-                payment = yield payment_1.Payment.create({ studentId, concepto, monto, descuento, montoReal });
+                payment = yield payment_1.Payment.create({ studentId, concepto, monto, descuento, montoReal, metodoPago, bancoDestino });
             }
             // Registrar recibo para cualquier tipo de pago
-            yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}` });
+            yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}`, metodoPago, bancoDestino });
             resultados.push(payment);
         }
         res.status(201).json(resultados);
@@ -151,7 +153,7 @@ exports.getFeesByStudentId = getFeesByStudentId;
 // Registrar un pago mixto (cuotas, productos, descuentos)
 const registerMixedPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { studentId, year, items, total } = req.body;
+        const { studentId, year, items, total, metodoPago, bancoDestino } = req.body;
         let monto = 0;
         let descuento = 0;
         let montoReal = 0;
@@ -182,12 +184,14 @@ const registerMixedPayment = (req, res) => __awaiter(void 0, void 0, void 0, fun
                     descuento: 0,
                     montoReal: montoProducto,
                     fecha: new Date(),
+                    metodoPago,
+                    bancoDestino
                 });
                 monto += montoProducto;
                 productosRegistrados.push(pagoProducto);
                 detalles.push({ tipo: 'producto', id: item.id, cantidad, status: 'registrado', pagoId: pagoProducto.get('id') });
                 // Registrar recibo para producto
-                yield paymentReceipt_1.default.create({ paymentId: pagoProducto.get('id'), amount: montoProducto, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para producto' });
+                yield paymentReceipt_1.default.create({ paymentId: pagoProducto.get('id'), amount: montoProducto, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para producto', metodoPago, bancoDestino });
             }
             else if (item.type === 'discount') {
                 descuento += Number(item.amount); // debe ser negativo
@@ -204,9 +208,11 @@ const registerMixedPayment = (req, res) => __awaiter(void 0, void 0, void 0, fun
             descuento,
             montoReal,
             fecha: new Date(),
+            metodoPago,
+            bancoDestino
         });
         // Registrar recibo para pago mixto
-        yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para pago mixto' });
+        yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para pago mixto', metodoPago, bancoDestino });
         res.status(201).json({ payment, productosRegistrados, detalles });
     }
     catch (error) {

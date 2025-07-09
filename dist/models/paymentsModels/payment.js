@@ -16,5 +16,7 @@ exports.Payment = connection_1.default.define('payment', {
     monto: { type: sequelize_1.DataTypes.DECIMAL(10, 2), allowNull: false },
     descuento: { type: sequelize_1.DataTypes.DECIMAL(10, 2), allowNull: true, defaultValue: 0 },
     montoReal: { type: sequelize_1.DataTypes.DECIMAL(10, 2), allowNull: false },
-    fecha: { type: sequelize_1.DataTypes.DATE, defaultValue: sequelize_1.DataTypes.NOW }
+    fecha: { type: sequelize_1.DataTypes.DATE, defaultValue: sequelize_1.DataTypes.NOW },
+    metodoPago: { type: sequelize_1.DataTypes.ENUM('efectivo', 'tarjeta'), allowNull: false, defaultValue: 'efectivo' },
+    bancoDestino: { type: sequelize_1.DataTypes.STRING, allowNull: true },
 });

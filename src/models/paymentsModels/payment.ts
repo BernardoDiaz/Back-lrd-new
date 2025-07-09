@@ -11,5 +11,7 @@ export const Payment = sequelize.define('payment', {
     monto: { type: DataTypes.DECIMAL(10,2), allowNull: false }, // monto original
     descuento: { type: DataTypes.DECIMAL(10,2), allowNull: true, defaultValue: 0 }, // descuento aplicado
     montoReal: { type: DataTypes.DECIMAL(10,2), allowNull: false }, // monto final (monto - descuento)
-    fecha: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
-});
+    fecha: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    metodoPago: { type: DataTypes.ENUM('efectivo', 'tarjeta'), allowNull: false, defaultValue: 'efectivo' },
+    bancoDestino: { type: DataTypes.STRING, allowNull: true },
+}); 
