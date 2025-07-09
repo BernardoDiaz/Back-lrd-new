@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const PaymentReceipt_Controller_1 = require("../../controllers/PaymentsControllers/PaymentReceipt.Controller");
+const router = (0, express_1.Router)();
+router.post('/', PaymentReceipt_Controller_1.createReceipt);
+router.get('/', PaymentReceipt_Controller_1.listReceipts);
+router.patch('/:id/status', PaymentReceipt_Controller_1.updateReceiptStatus);
+router.get('/:id', PaymentReceipt_Controller_1.getReceiptById);
+exports.default = router;

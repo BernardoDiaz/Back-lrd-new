@@ -8,6 +8,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getFeesByStudentId = exports.getEnrollmentYears = exports.createEnrollmentAndFeesForYear = exports.updateEnrollmentPayment = exports.getEnrollmentByStudentId = void 0;
 const enrollment_1 = require("../../models/paymentsModels/enrollment");
@@ -15,6 +18,8 @@ const fee_1 = require("../../models/paymentsModels/fee");
 const feeConfig_1 = require("../../models/paymentsModels/feeConfig");
 const student_1 = require("../../models/studentsModels/student");
 const paymentBook_1 = require("../../models/paymentsModels/paymentBook");
+const payment_1 = require("../../models/paymentsModels/payment");
+const paymentReceipt_1 = __importDefault(require("../../models/paymentsModels/paymentReceipt"));
 // Consultar información de matrícula por studentId y año (si se envía)
 const getEnrollmentByStudentId = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -56,7 +61,6 @@ const updateEnrollmentPayment = (req, res) => __awaiter(void 0, void 0, void 0, 
         if (!enrollment) {
             return res.status(404).json({ msg: "Matrícula no encontrada para el año actual" });
         }
-        // El montoPagado incluye el valor total que se aplica al saldo
         let montoPagadoActual = enrollment.get("montoPagado");
         if (typeof montoPagadoActual !== "number") {
             montoPagadoActual = parseFloat(montoPagadoActual);
@@ -69,14 +73,10 @@ const updateEnrollmentPayment = (req, res) => __awaiter(void 0, void 0, void 0, 
         if (typeof descuentoActual !== "number") {
             descuentoActual = parseFloat(descuentoActual);
         }
-        // montoPagado viene como lo realmente pagado
-        // El total efectivo se reduce por el descuento aplicado
         const pagoReal = Number(montoPagado) - Number(descuento);
         const nuevoPagado = montoPagadoActual + pagoReal;
         const nuevoDescuento = descuentoActual + Number(descuento);
-        // El total efectivo es el original menos todos los descuentos
         const nuevoMontoTotal = montoTotal - Number(descuento);
-        // Saldo = total efectivo - pagado
         let saldo = nuevoMontoTotal - nuevoPagado;
         if (saldo < 0)
             saldo = 0;
@@ -84,19 +84,47 @@ const updateEnrollmentPayment = (req, res) => __awaiter(void 0, void 0, void 0, 
             montoPagado: nuevoPagado,
             saldo,
             descuento: nuevoDescuento,
-            montoTotal: nuevoMontoTotal // Actualizar también el montoTotal
+            montoTotal: nuevoMontoTotal
         });
-        // Si se envía feeId, marcar la cuota como pagada
+        // Siempre registrar el pago y el recibo, independientemente de feeId
+        let payment;
         if (feeId) {
             const fee = yield fee_1.Fee.findByPk(feeId);
             if (fee) {
                 yield fee.update({ pagado: true, fechaPago: new Date() });
             }
+            payment = yield payment_1.Payment.create({
+                studentId,
+                concepto: 'cuota',
+                feeId,
+                monto: pagoReal,
+                descuento,
+                montoReal: pagoReal,
+                fecha: new Date(),
+            });
+        }
+        else {
+            payment = yield payment_1.Payment.create({
+                studentId,
+                concepto: 'matricula',
+                enrollmentId: enrollment.get('id'),
+                monto: pagoReal,
+                descuento,
+                montoReal: pagoReal,
+                fecha: new Date(),
+            });
+        }
+        console.log('Pago creado:', payment.get('id'));
+        try {
+            const recibo = yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: pagoReal, status: 'emitido', issuedAt: new Date(), notes: feeId ? 'Pago de cuota desde matrícula' : 'Pago de matrícula desde matrícula' });
+            console.log('Recibo creado:', recibo.get('id'));
+        }
+        catch (err) {
+            console.error('Error creando recibo:', err);
         }
         res.json({ msg: "Matrícula actualizada" });
     }
     catch (error) {
-        // Mostrar el error real en la respuesta para depuración
         res.status(500).json({ error: "Error al actualizar la matrícula", details: error.message, stack: error.stack });
     }
 });

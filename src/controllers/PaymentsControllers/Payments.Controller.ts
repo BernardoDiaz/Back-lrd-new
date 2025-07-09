@@ -3,6 +3,7 @@ import { Payment } from "../../models/paymentsModels/payment";
 import { Fee } from "../../models/paymentsModels/fee";
 import { Enrollment } from "../../models/paymentsModels/enrollment";
 import { PaymentBook } from "../../models/paymentsModels/paymentBook";
+import PaymentReceipt from '../../models/paymentsModels/paymentReceipt';
 
 // Registrar uno o varios pagos (cuota, matrícula o producto)
 export const createPayment = async (req: Request, res: Response) => {
@@ -24,13 +25,14 @@ export const createPayment = async (req: Request, res: Response) => {
                     const nuevoPagado = Number(enrollment.get('montoPagado')) + montoReal;
                     const saldo = Number(enrollment.get('montoTotal')) - nuevoPagado;
                     await enrollment.update({ montoPagado: nuevoPagado, saldo });
-                } 
+                }
             } else if (concepto === 'producto' && productId) {
                 payment = await Payment.create({ studentId, concepto, productId, monto, descuento, montoReal });
-                // Aquí podrías descontar stock si lo deseas
             } else {
-                return res.status(400).json({ msg: 'Datos insuficientes o concepto inválido.' });
+                payment = await Payment.create({ studentId, concepto, monto, descuento, montoReal });
             }
+            // Registrar recibo para cualquier tipo de pago
+            await PaymentReceipt.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}` });
             return res.status(201).json(payment);
         }
         // Si viene un array de pagos
@@ -53,11 +55,11 @@ export const createPayment = async (req: Request, res: Response) => {
                 }
             } else if (concepto === 'producto' && productId) {
                 payment = await Payment.create({ studentId, concepto, productId, monto, descuento, montoReal });
-                // Aquí podrías descontar stock si lo deseas
             } else {
-                resultados.push({ error: 'Datos insuficientes o concepto inválido', pago });
-                continue;
+                payment = await Payment.create({ studentId, concepto, monto, descuento, montoReal });
             }
+            // Registrar recibo para cualquier tipo de pago
+            await PaymentReceipt.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}` });
             resultados.push(payment);
         }
         res.status(201).json(resultados);
@@ -163,9 +165,12 @@ export const registerMixedPayment = async (req: Request, res: Response) => {
                 monto += montoProducto;
                 productosRegistrados.push(pagoProducto);
                 detalles.push({ tipo: 'producto', id: item.id, cantidad, status: 'registrado', pagoId: pagoProducto.get('id') });
+                // Registrar recibo para producto
+                await PaymentReceipt.create({ paymentId: pagoProducto.get('id'), amount: montoProducto, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para producto' });
             } else if (item.type === 'discount') {
                 descuento += Number(item.amount); // debe ser negativo
                 detalles.push({ tipo: 'descuento', id: item.id, monto: item.amount });
+                // NO registrar recibo para descuento - los descuentos no generan recibos independientes
             }
         }
 
@@ -180,7 +185,8 @@ export const registerMixedPayment = async (req: Request, res: Response) => {
             montoReal,
             fecha: new Date(),
         });
-
+        // Registrar recibo para pago mixto
+        await PaymentReceipt.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para pago mixto' });
         res.status(201).json({ payment, productosRegistrados, detalles });
     } catch (error) {
         res.status(400).json({ error: (error as Error).message });

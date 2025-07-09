@@ -22,6 +22,7 @@ const feeConfig_Route_1 = __importDefault(require("../routes/PaymentsRoute/feeCo
 const productCategory_Route_1 = __importDefault(require("../routes/ProductsRoute/productCategory.Route"));
 const product_Route_1 = __importDefault(require("../routes/ProductsRoute/product.Route"));
 const enrollment_Route_1 = __importDefault(require("../routes/StudentRoute/enrollment.Route"));
+const paymentReceipt_Route_1 = __importDefault(require("../routes/PaymentsRoute/paymentReceipt.Route"));
 // MODELOS DE BD
 const user_1 = require("./usersModels/user");
 const student_1 = require("./studentsModels/student");
@@ -32,6 +33,7 @@ const payment_1 = require("./paymentsModels/payment");
 const feeConfig_1 = require("./paymentsModels/feeConfig");
 const productCategory_1 = require("./productsModels/productCategory");
 const product_1 = require("./productsModels/product");
+const paymentReceipt_1 = __importDefault(require("./paymentsModels/paymentReceipt"));
 require("../models/paymentsModels/associations");
 class Server {
     constructor() {
@@ -59,6 +61,7 @@ class Server {
         this.app.use('/api/categories', productCategory_Route_1.default);
         this.app.use('/api/products', product_Route_1.default);
         this.app.use('/api/enrollments', enrollment_Route_1.default);
+        this.app.use('/api/payment-receipts', paymentReceipt_Route_1.default);
     }
     ;
     midlewares() {
@@ -82,7 +85,7 @@ class Server {
             },
             credentials: true,
             allowedHeaders: ['Content-Type', 'Authorization'],
-            methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] // Agregado PATCH
         }));
     }
     ;
@@ -98,21 +101,26 @@ class Server {
                 yield feeConfig_1.FeeConfig.sync();
                 // Crear FeeConfig por defecto si no existen
                 const niveles = [
-                    'Inicial',
-                    'Parvularia',
-                    'Primer Ciclo',
-                    'Segundo Ciclo',
-                    'Tercer Ciclo',
-                    'Bachillerato'
+                    { "nivel": "Inicial 1", "montoCuota": "95.00", "montoMatricula": "190.00" },
+                    { "nivel": "Inicial 2", "montoCuota": "70.00", "montoMatricula": "190.00" },
+                    { "nivel": "Inicial 3", "montoCuota": "65.00", "montoMatricula": "190.00" },
+                    { "nivel": "Parvularia", "montoCuota": "43.00", "montoMatricula": "200.00" },
+                    { "nivel": "Primer Ciclo", "montoCuota": "48.00", "montoMatricula": "200.00" },
+                    { "nivel": "Segundo Ciclo", "montoCuota": "48.00", "montoMatricula": "200.00" },
+                    { "nivel": "Tercer Ciclo", "montoCuota": "48.00", "montoMatricula": "200.00" },
+                    { "nivel": "Bachillerato", "montoCuota": "57.00", "montoMatricula": "250.00" }
                 ];
-                for (const nivel of niveles) {
+                for (const { nivel, montoCuota, montoMatricula } of niveles) {
                     const exists = yield feeConfig_1.FeeConfig.findOne({ where: { nivel } });
                     if (!exists) {
-                        yield feeConfig_1.FeeConfig.create({ nivel, montoCuota: 35, montoMatricula: 350 });
+                        yield feeConfig_1.FeeConfig.create({ nivel, montoCuota, montoMatricula });
                     }
                 }
                 yield productCategory_1.ProductCategory.sync();
                 yield product_1.Product.sync();
+                // Sincronizar PaymentReceipt forzando alteración de tabla
+                yield paymentReceipt_1.default.sync({ alter: true });
+                console.log('PaymentReceipt sincronizado correctamente');
                 console.log('Connection valid');
             }
             catch (error) {

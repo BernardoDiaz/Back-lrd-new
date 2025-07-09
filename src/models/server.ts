@@ -8,6 +8,7 @@ import feeConfigRoutes from '../routes/PaymentsRoute/feeConfig.Route';
 import productCategoryRoutes from '../routes/ProductsRoute/productCategory.Route';
 import productRoutes from '../routes/ProductsRoute/product.Route';
 import enrollmentRoutes from '../routes/StudentRoute/enrollment.Route';
+import paymentReceiptRoutes from '../routes/PaymentsRoute/paymentReceipt.Route';
 // MODELOS DE BD
 import { user } from './usersModels/user';
 import { Student } from './studentsModels/student';
@@ -18,6 +19,7 @@ import { Payment } from './paymentsModels/payment';
 import { FeeConfig } from './paymentsModels/feeConfig';
 import { ProductCategory } from './productsModels/productCategory';
 import { Product } from './productsModels/product';
+import PaymentReceipt from './paymentsModels/paymentReceipt';
 import '../models/paymentsModels/associations';
 
 class Server {
@@ -50,6 +52,7 @@ class Server {
         this.app.use('/api/categories', productCategoryRoutes);
         this.app.use('/api/products', productRoutes);
         this.app.use('/api/enrollments', enrollmentRoutes);
+        this.app.use('/api/payment-receipts', paymentReceiptRoutes);
     };
 
     midlewares() {
@@ -72,7 +75,7 @@ class Server {
             },
             credentials: true,
             allowedHeaders: ['Content-Type', 'Authorization'],
-            methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] // Agregado PATCH
         }));
     };
  
@@ -87,21 +90,26 @@ class Server {
             await FeeConfig.sync();
             // Crear FeeConfig por defecto si no existen
             const niveles = [
-                'Inicial',
-                'Parvularia',
-                'Primer Ciclo',
-                'Segundo Ciclo',
-                'Tercer Ciclo',
-                'Bachillerato'
+                { "nivel": "Inicial 1", "montoCuota": "95.00", "montoMatricula": "190.00" },
+                { "nivel": "Inicial 2", "montoCuota": "70.00", "montoMatricula": "190.00" },
+                { "nivel": "Inicial 3", "montoCuota": "65.00", "montoMatricula": "190.00" },
+                { "nivel": "Parvularia", "montoCuota": "43.00", "montoMatricula": "200.00" },
+                { "nivel": "Primer Ciclo", "montoCuota": "48.00", "montoMatricula": "200.00" },
+                { "nivel": "Segundo Ciclo", "montoCuota": "48.00", "montoMatricula": "200.00" },
+                { "nivel": "Tercer Ciclo", "montoCuota": "48.00", "montoMatricula": "200.00" },
+                { "nivel": "Bachillerato", "montoCuota": "57.00", "montoMatricula": "250.00" }
             ];
-            for (const nivel of niveles) {
+            for (const { nivel, montoCuota, montoMatricula } of niveles) {
                 const exists = await FeeConfig.findOne({ where: { nivel } });
                 if (!exists) {
-                    await FeeConfig.create({ nivel, montoCuota: 35, montoMatricula: 350 });
+                    await FeeConfig.create({ nivel, montoCuota, montoMatricula });
                 }
             }
             await ProductCategory.sync();
             await Product.sync();
+            // Sincronizar PaymentReceipt forzando alteración de tabla
+            await PaymentReceipt.sync({ alter: true });
+            console.log('PaymentReceipt sincronizado correctamente');
             console.log('Connection valid');
         } catch (error) {
             console.error('Connection not valid', error);

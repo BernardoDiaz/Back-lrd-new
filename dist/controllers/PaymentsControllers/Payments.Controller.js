@@ -8,12 +8,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerMixedPayment = exports.getFeesByStudentId = exports.getCurrentYearFeesByStudent = exports.getPaymentsByStudent = exports.createPayment = void 0;
 const payment_1 = require("../../models/paymentsModels/payment");
 const fee_1 = require("../../models/paymentsModels/fee");
 const enrollment_1 = require("../../models/paymentsModels/enrollment");
 const paymentBook_1 = require("../../models/paymentsModels/paymentBook");
+const paymentReceipt_1 = __importDefault(require("../../models/paymentsModels/paymentReceipt"));
 // Registrar uno o varios pagos (cuota, matrícula o producto)
 const createPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -40,11 +44,12 @@ const createPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             }
             else if (concepto === 'producto' && productId) {
                 payment = yield payment_1.Payment.create({ studentId, concepto, productId, monto, descuento, montoReal });
-                // Aquí podrías descontar stock si lo deseas
             }
             else {
-                return res.status(400).json({ msg: 'Datos insuficientes o concepto inválido.' });
+                payment = yield payment_1.Payment.create({ studentId, concepto, monto, descuento, montoReal });
             }
+            // Registrar recibo para cualquier tipo de pago
+            yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}` });
             return res.status(201).json(payment);
         }
         // Si viene un array de pagos
@@ -70,12 +75,12 @@ const createPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             }
             else if (concepto === 'producto' && productId) {
                 payment = yield payment_1.Payment.create({ studentId, concepto, productId, monto, descuento, montoReal });
-                // Aquí podrías descontar stock si lo deseas
             }
             else {
-                resultados.push({ error: 'Datos insuficientes o concepto inválido', pago });
-                continue;
+                payment = yield payment_1.Payment.create({ studentId, concepto, monto, descuento, montoReal });
             }
+            // Registrar recibo para cualquier tipo de pago
+            yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: `Recibo generado para ${concepto}` });
             resultados.push(payment);
         }
         res.status(201).json(resultados);
@@ -181,10 +186,13 @@ const registerMixedPayment = (req, res) => __awaiter(void 0, void 0, void 0, fun
                 monto += montoProducto;
                 productosRegistrados.push(pagoProducto);
                 detalles.push({ tipo: 'producto', id: item.id, cantidad, status: 'registrado', pagoId: pagoProducto.get('id') });
+                // Registrar recibo para producto
+                yield paymentReceipt_1.default.create({ paymentId: pagoProducto.get('id'), amount: montoProducto, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para producto' });
             }
             else if (item.type === 'discount') {
                 descuento += Number(item.amount); // debe ser negativo
                 detalles.push({ tipo: 'descuento', id: item.id, monto: item.amount });
+                // NO registrar recibo para descuento - los descuentos no generan recibos independientes
             }
         }
         montoReal = monto + descuento;
@@ -197,6 +205,8 @@ const registerMixedPayment = (req, res) => __awaiter(void 0, void 0, void 0, fun
             montoReal,
             fecha: new Date(),
         });
+        // Registrar recibo para pago mixto
+        yield paymentReceipt_1.default.create({ paymentId: payment.get('id'), amount: montoReal, status: 'emitido', issuedAt: new Date(), notes: 'Recibo generado para pago mixto' });
         res.status(201).json({ payment, productosRegistrados, detalles });
     }
     catch (error) {

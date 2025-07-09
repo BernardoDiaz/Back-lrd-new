@@ -2,15 +2,15 @@ import {Sequelize} from "sequelize";
 import { user } from '../models/usersModels/user';
 import bcrypt from 'bcrypt';
 
-// const sequelize = new Sequelize('proyectlrd2','root','root123456',{
-//     host: 'localhost',
-//     dialect: 'mysql'
-// }); 
-
-const sequelize = new Sequelize('proyectlrd','vmtest','ed|6vB{4Yn}F5gA4',{
+const sequelize = new Sequelize('proyectlrd2','root','root123456',{
     host: 'localhost',
     dialect: 'mysql'
 }); 
+
+// const sequelize = new Sequelize('proyectlrd','vmtest','ed|6vB{4Yn}F5gA4',{
+//     host: 'localhost',
+//     dialect: 'mysql'
+// }); 
 
 // Crear usuario por defecto si no existe ninguno
 afterDbSync();
