@@ -4,6 +4,8 @@ import { PaymentBook } from "../../models/paymentsModels/paymentBook";
 import { Enrollment } from "../../models/paymentsModels/enrollment";
 import { Fee } from "../../models/paymentsModels/fee";
 import { FeeConfig } from "../../models/paymentsModels/feeConfig";
+import { Payment } from "../../models/paymentsModels/payment";
+import PaymentReceipt from "../../models/paymentsModels/paymentReceipt";
 import { Op } from "sequelize";
 
 // Crear nuevo aspirante
@@ -98,50 +100,117 @@ export const getStudentById = async (req: Request, res: Response) => {
 
 // Actualizar datos de estudiante
 export const updateStudent = async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const {
-        nombres,
-        apellidos,
-        correo,
-        telefono,
-        fechaNacimiento,
-        direccion,
-        matricula,
-        nivel,
-        grado,
-        nombreContactoEmergencia,
-        telefonoContactoEmergencia,
-        tipo,
-        estado
-    } = req.body;
-    const student = await Student.findByPk(id);
-    if (!student) return res.status(404).json({ msg: 'No encontrado' });
-    await student.update({
-        nombres,
-        apellidos,
-        correo,
-        telefono,
-        fechaNacimiento,
-        direccion,
-        matricula,
-        nivel,
-        grado,
-        nombreContactoEmergencia,
-        telefonoContactoEmergencia,
-        tipo,
-        estado
-    });
-    res.json(student); 
+    try {
+        const { id } = req.params;
+        const {
+            nombres,
+            apellidos,
+            correo,
+            telefono,
+            fechaNacimiento,
+            direccion,
+            nivel,
+            grado,
+            nombreContactoEmergencia,
+            telefonoContactoEmergencia,
+            tipo,
+            estado
+        } = req.body;
+        
+        const student = await Student.findByPk(id);
+        if (!student) return res.status(404).json({ msg: 'No encontrado' });
+        
+        const currentLevel = student.get('nivel');
+        const isChangingLevel = nivel && nivel !== currentLevel;
+        
+        // Si se cambia el nivel, actualizar las cuotas pendientes
+        if (isChangingLevel && tipo === 'estudiante') {
+            const newConfig = await FeeConfig.findOne({ where: { nivel } });
+            if (!newConfig) {
+                return res.status(400).json({ msg: 'No existe configuración de montos para el nuevo nivel.' });
+            }
+             
+            const newCuotaAmount = newConfig.get('montoCuota');
+            const studentYear = student.get('year') || new Date().getFullYear();
+            
+            // Actualizar solo las cuotas NO pagadas del año correspondiente
+            await Fee.update(
+                { monto: newCuotaAmount },
+                { 
+                    where: { 
+                        studentId: student.get('studentID'),
+                        pagado: false,
+                        year: studentYear
+                    } 
+                }
+            );
+        }
+        
+        // Actualizar datos del estudiante (sin incluir matrícula)
+        await student.update({
+            nombres,
+            apellidos,
+            correo,
+            telefono,
+            fechaNacimiento,
+            direccion,
+            nivel,
+            grado,
+            nombreContactoEmergencia,
+            telefonoContactoEmergencia,
+            tipo,
+            estado
+        });
+        
+        res.json(student); 
+    } catch (error) {
+        res.status(400).json({ error });
+    }
 };
 
 
 // Eliminar estudiante
 export const deleteStudent = async (req: Request, res: Response) => {
-    const { studentId } = req.params;
-    const student = await Student.findOne({ where: { studentID: studentId } });
-    if (!student) return res.status(404).json({ msg: 'No encontrado' });
-    await student.destroy();
-    res.json({ msg: 'Eliminado' });
+    try {
+        const { studentId } = req.params; 
+        const student = await Student.findOne({ where: { studentID: studentId } });
+        if (!student) return res.status(404).json({ msg: 'No encontrado' });
+        
+        // Verificar si el estudiante tiene pagos realizados
+        const paymentBook = await PaymentBook.findOne({ where: { studentId } });
+        
+        if (paymentBook) {
+            // Buscar si hay fees con pagos realizados
+            const feesWithPayments = await Fee.findAll({ 
+                where: { 
+                    studentId,
+                    pagado: true 
+                } 
+            });
+            
+            if (feesWithPayments.length > 0) {
+                return res.status(400).json({ 
+                    msg: 'No se puede eliminar el estudiante porque tiene pagos realizados. Los registros financieros deben conservarse.',
+                    code: 'HAS_PAYMENTS'
+                });
+            }
+            
+            // Si no hay pagos realizados, eliminar solo fees pendientes y paymentBook
+            await Fee.destroy({ where: { studentId, pagado: false } });
+            await paymentBook.destroy();
+        }
+        
+        // Eliminar enrollment (matrícula) - sin verificar campo pagado por ahora
+        await Enrollment.destroy({ where: { studentId } });
+        
+        // Finalmente eliminar el estudiante
+        await student.destroy();
+        
+        res.json({ msg: 'Estudiante eliminado correctamente' });
+    } catch (error: any) {
+        console.error('Error eliminando estudiante:', error);
+        res.status(500).json({ msg: 'Error eliminando estudiante', error: error.message });
+    }
 };
 
 

@@ -96,37 +96,90 @@ const getStudentById = (req, res) => __awaiter(void 0, void 0, void 0, function*
 exports.getStudentById = getStudentById;
 // Actualizar datos de estudiante
 const updateStudent = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    const { nombres, apellidos, correo, telefono, fechaNacimiento, direccion, matricula, nivel, grado, nombreContactoEmergencia, telefonoContactoEmergencia, tipo, estado } = req.body;
-    const student = yield student_1.Student.findByPk(id);
-    if (!student)
-        return res.status(404).json({ msg: 'No encontrado' });
-    yield student.update({
-        nombres,
-        apellidos,
-        correo,
-        telefono,
-        fechaNacimiento,
-        direccion,
-        matricula,
-        nivel,
-        grado,
-        nombreContactoEmergencia,
-        telefonoContactoEmergencia,
-        tipo,
-        estado
-    });
-    res.json(student);
+    try {
+        const { id } = req.params;
+        const { nombres, apellidos, correo, telefono, fechaNacimiento, direccion, nivel, grado, nombreContactoEmergencia, telefonoContactoEmergencia, tipo, estado } = req.body;
+        const student = yield student_1.Student.findByPk(id);
+        if (!student)
+            return res.status(404).json({ msg: 'No encontrado' });
+        const currentLevel = student.get('nivel');
+        const isChangingLevel = nivel && nivel !== currentLevel;
+        // Si se cambia el nivel, actualizar las cuotas pendientes
+        if (isChangingLevel && tipo === 'estudiante') {
+            const newConfig = yield feeConfig_1.FeeConfig.findOne({ where: { nivel } });
+            if (!newConfig) {
+                return res.status(400).json({ msg: 'No existe configuración de montos para el nuevo nivel.' });
+            }
+            const newCuotaAmount = newConfig.get('montoCuota');
+            const studentYear = student.get('year') || new Date().getFullYear();
+            // Actualizar solo las cuotas NO pagadas del año correspondiente
+            yield fee_1.Fee.update({ monto: newCuotaAmount }, {
+                where: {
+                    studentId: student.get('studentID'),
+                    pagado: false,
+                    year: studentYear
+                }
+            });
+        }
+        // Actualizar datos del estudiante (sin incluir matrícula)
+        yield student.update({
+            nombres,
+            apellidos,
+            correo,
+            telefono,
+            fechaNacimiento,
+            direccion,
+            nivel,
+            grado,
+            nombreContactoEmergencia,
+            telefonoContactoEmergencia,
+            tipo,
+            estado
+        });
+        res.json(student);
+    }
+    catch (error) {
+        res.status(400).json({ error });
+    }
 });
 exports.updateStudent = updateStudent;
 // Eliminar estudiante
 const deleteStudent = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { studentId } = req.params;
-    const student = yield student_1.Student.findOne({ where: { studentID: studentId } });
-    if (!student)
-        return res.status(404).json({ msg: 'No encontrado' });
-    yield student.destroy();
-    res.json({ msg: 'Eliminado' });
+    try {
+        const { studentId } = req.params;
+        const student = yield student_1.Student.findOne({ where: { studentID: studentId } });
+        if (!student)
+            return res.status(404).json({ msg: 'No encontrado' });
+        // Verificar si el estudiante tiene pagos realizados
+        const paymentBook = yield paymentBook_1.PaymentBook.findOne({ where: { studentId } });
+        if (paymentBook) {
+            // Buscar si hay fees con pagos realizados
+            const feesWithPayments = yield fee_1.Fee.findAll({
+                where: {
+                    studentId,
+                    pagado: true
+                }
+            });
+            if (feesWithPayments.length > 0) {
+                return res.status(400).json({
+                    msg: 'No se puede eliminar el estudiante porque tiene pagos realizados. Los registros financieros deben conservarse.',
+                    code: 'HAS_PAYMENTS'
+                });
+            }
+            // Si no hay pagos realizados, eliminar solo fees pendientes y paymentBook
+            yield fee_1.Fee.destroy({ where: { studentId, pagado: false } });
+            yield paymentBook.destroy();
+        }
+        // Eliminar enrollment (matrícula) - sin verificar campo pagado por ahora
+        yield enrollment_1.Enrollment.destroy({ where: { studentId } });
+        // Finalmente eliminar el estudiante
+        yield student.destroy();
+        res.json({ msg: 'Estudiante eliminado correctamente' });
+    }
+    catch (error) {
+        console.error('Error eliminando estudiante:', error);
+        res.status(500).json({ msg: 'Error eliminando estudiante', error: error.message });
+    }
 });
 exports.deleteStudent = deleteStudent;
 // Cambiar aspirante a estudiante
